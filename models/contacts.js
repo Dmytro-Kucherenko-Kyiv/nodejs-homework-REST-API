@@ -1,58 +1,55 @@
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const crypto = require('node:crypto');
+const { Schema, model } = require('mongoose');
+const Joi = require('joi');
 
-const contactsPath = path.join(__dirname, './contacts.json');
+const { handleMongooseError } = require('../helpers');
 
-const listContacts = async () => {
-  const data = await fs.readFile(contactsPath, 'utf8');
-  return JSON.parse(data);
-}
+const phoneRegExp = /^\(\d{3}\)\s\d{3}-\d{4}$/;
 
-async function writeContacts(contacts) {
-  await fs.writeFile(contactsPath, JSON.stringify(contacts, null, 2));
-}
-
-const getContactById = async (contactId) => {
-  const contacts = await listContacts();
-  const contact = contacts.find((contact) => contact.id === contactId);
-  return contact || null;
-}
-
-const removeContact = async (contactId) => {
-  const contacts = await listContacts();
-  const index = contacts.findIndex((contact) => contact.id !== contactId);
-  if (index === -1) {
-    return null;
-  };
-  const [result] = contacts.splice(index, 1);
-  await writeContacts(contacts);
-  return result;
-}
-
-const addContact = async (body) => {
-  const contacts = await listContacts();
-  const newContact = { id: crypto.randomUUID(), ...body };
-  contacts.push(newContact);
-  await writeContacts(contacts);
-  return newContact;
-}
-
-const updateContact = async (contactId, body) => {
-  const contacts = await listContacts();
-  const index = contacts.findIndex((contact) => contact.id === contactId );
-  if (index === -1) {
-    return null;
+const contactSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Set name for contact'],
+    },
+    email: {
+      type: String,
+      required: true,
+    },
+    phone: {
+      type: String,
+      match: phoneRegExp,
+      required: true,
+    },
+    favorite: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    versionKey: false,
+    timestamps: true,
   }
-  contacts[index] = {...contacts[index], ...body};
-  await writeContacts(contacts);
-  return contacts[index];
-}
+);
 
-module.exports = {
-  listContacts,
-  getContactById,
-  removeContact,
-  addContact,
-  updateContact,
-}
+contactSchema.post('save', handleMongooseError);
+
+const addSchema = Joi.object({
+  name: Joi.string().required(),
+  email: Joi.string().required(),
+  phone: Joi.string().pattern(phoneRegExp).required(),
+  favorite: Joi.boolean(),
+});
+const updSchema = Joi.object({
+  name: Joi.string(),
+  email: Joi.string(),
+  phone: Joi.string(),
+});
+const updateFavoriteSchema = Joi.object({
+  favorite: Joi.boolean().required(),
+});
+
+const schemas = { addSchema, updSchema, updateFavoriteSchema };
+
+const Contact = model('contact', contactSchema);
+
+module.exports = { Contact, schemas };
