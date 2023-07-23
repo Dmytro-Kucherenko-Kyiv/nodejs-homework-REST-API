@@ -4,7 +4,19 @@ const { validateBody, authenticate } = require('../../middlewares');
 const { schemas } = require('../../models/user');
 const router = express.Router();
 
-router.post('/register', validateBody(schemas.registerSchema), ctrl.register);
+const multer = require('multer');
+const path = require('path');
+
+const tempDir = path.join(__dirname, '../', '../', 'temp');
+const multerConfig = multer.diskStorage({
+  destination: tempDir,
+  filename: (req, file, cb) => {
+    cb(null, file.originalname);
+  },
+});
+const upload = multer({ storage: multerConfig });
+
+router.post('/register', upload.single('avatar'), ctrl.register);
 
 router.post('/login', validateBody(schemas.loginSchema), ctrl.login);
 
